@@ -1,0 +1,72 @@
+// Filename: upload_current_dir.mjs
+import { execSync } from "child_process";
+import fs from "fs";
+import path from "path";
+import readline from "readline";
+
+const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+const ask = (q) => new Promise(resolve => rl.question(q, resolve));
+
+const deleteFolderRecursive = (folderPath) => {
+  if (fs.existsSync(folderPath)) {
+    fs.readdirSync(folderPath).forEach((file) => {
+      const curPath = path.join(folderPath, file);
+      if (fs.lstatSync(curPath).isDirectory()) deleteFolderRecursive(curPath);
+      else fs.unlinkSync(curPath);
+    });
+    fs.rmdirSync(folderPath);
+  }
+};
+
+async function main() {
+  try {
+    const cwd = process.cwd();
+    console.log("📂 Current directory:", cwd);
+
+    // 1. List all files (non-recursive)
+    const entries = fs.readdirSync(cwd).map(f => {
+      const fullPath = path.join(cwd, f);
+      return {
+        name: f,
+        path: fullPath,
+        isDir: fs.statSync(fullPath).isDirectory()
+      };
+    }).filter(e => !e.isDir); // Only files
+
+    if (entries.length === 0) throw new Error("No files found in the current directory.");
+
+    console.log("\nFiles available for upload:");
+    entries.forEach((e, i) => console.log(`${i + 1}) ${e.name}`));
+
+    // 2. User selects files
+    const choice = await ask("\nEnter numbers of files to upload (comma-separated): ");
+    const selectedIndices = choice.split(",").map(n => parseInt(n.trim()) - 1).filter(i => entries[i]);
+    if (selectedIndices.length === 0) throw new Error("No valid files selected");
+
+    const uploadDir = path.join(cwd, "selected_upload");
+    if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir);
+
+    // 3. Copy selected files to temp folder
+    for (const i of selectedIndices) {
+      fs.copyFileSync(entries[i].path, path.join(uploadDir, entries[i].name));
+    }
+
+    // 4. Ask for Storacha Space
+    const spaceName = await ask("Enter the name of the Space to upload to: ");
+
+    // 5. Upload using CLI
+    console.log(`Uploading to Space "${spaceName}"...`);
+    execSync(`npx storacha upload "${uploadDir}" --space "${spaceName}"`, { stdio: "inherit" });
+    
+    // 6. Cleanup
+    deleteFolderRecursive(uploadDir);
+    console.log("✅ Upload complete and temporary folder removed.");
+    rl.close();
+
+  } catch (err) {
+    console.error("❌ Error:", err.message || err);
+    rl.close();
+  }
+}
+
+main();
