@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'; // SINTAXE CORRIGIDA: usa 'from'
+import { useState, useEffect } from 'react';
 // Importa o cliente Storacha
 import * as StorachaClient from '@storacha/client'; 
 import UploadForm from './components/UploadForm';
